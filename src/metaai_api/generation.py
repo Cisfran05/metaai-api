@@ -297,7 +297,7 @@ class GenerationAPI:
 
                 if images:
                     result['image_objects'] = images
-                    result['images'] = [img.get('url') for img in images if img.get('url')]
+                    result['images'] = [img.get('url') for img in images if isinstance(img, dict) and img.get('url')]
                     self.logger.info(f"Successfully fetched {len(result['images'])} image URLs")
                 else:
                     self.logger.warning("No image URLs retrieved - images may still be processing")
@@ -1197,10 +1197,12 @@ class GenerationAPI:
             if not messages:
                 for key in data.keys():
                     if 'message' in key.lower():
-                        msg_data = data[key].get('messages', {}).get('edges', [])
-                        if msg_data:
-                            messages = msg_data
-                            break
+                        key_data = data[key]
+                        if isinstance(key_data, dict):
+                            msg_data = key_data.get('messages', {}).get('edges', [])
+                            if msg_data:
+                                messages = msg_data
+                                break
             
             # Extract URLs from messages
             for edge in messages:
