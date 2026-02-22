@@ -812,6 +812,8 @@ class GenerationAPI:
                 if create_route_media:
                     route_id = create_route_media.get('id')
                     route_url = create_route_media.get('url') or create_route_media.get('fallbackUrl')
+                    source_media = create_route_media.get('sourceMedia')
+                    source_image_url = source_media.get('url') if isinstance(source_media, dict) else None
                     if route_id in video_ids and route_url and route_id not in seen_ids:
                         videos.append({
                             'id': route_id,
@@ -823,7 +825,7 @@ class GenerationAPI:
                             'orientation': create_route_media.get('orientation'),
                             'fallbackUrl': create_route_media.get('fallbackUrl'),
                             'downloadableFileName': create_route_media.get('downloadableFileName'),
-                            'source_image_url': create_route_media.get('sourceMedia', {}).get('url')
+                            'source_image_url': source_image_url
                         })
                         seen_ids.add(route_id)
                 media_feed = data.get('data', {}).get('mediaLibraryFeed', {})
@@ -839,6 +841,8 @@ class GenerationAPI:
                         
                         # Check if this is one of our requested videos and has a URL
                         if video_id in video_ids and video_url and video_id not in seen_ids:
+                            source_media = video.get('sourceMedia')
+                            source_image_url = source_media.get('url') if isinstance(source_media, dict) else None
                             videos.append({
                                 'id': video_id,
                                 'url': video_url,
@@ -849,7 +853,7 @@ class GenerationAPI:
                                 'orientation': video.get('orientation'),
                                 'fallbackUrl': video.get('fallbackUrl'),
                                 'downloadableFileName': video.get('downloadableFileName'),
-                                'source_image_url': video.get('sourceMedia', {}).get('url')
+                                'source_image_url': source_image_url
                             })
                             seen_ids.add(video_id)
                 
