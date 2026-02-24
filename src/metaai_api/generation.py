@@ -138,6 +138,52 @@ class GenerationAPI:
         if media_ids:
             attachments_v2 = [str(mid) for mid in media_ids]
 
+        # Determine operation type based on media_ids presence
+        is_image_to_image = operation == "TEXT_TO_IMAGE" and media_ids and len(media_ids) > 0
+        is_image_to_video = operation == "TEXT_TO_VIDEO" and media_ids and len(media_ids) > 0
+        
+        # Build imagineOperationRequest based on operation type
+        if is_image_to_image:
+            # Use imageToImageParams for image-to-image generation
+            num_media = kwargs.get('num_images', 4)
+            imagine_request = {
+                "operation": "IMAGE_TO_IMAGE",
+                "imageToImageParams": {
+                    "sourceMediaEntId": str(media_ids[0]),
+                    "instruction": prompt,
+                    "imageSource": "USER_UPLOADED",
+                    "imageUploadType": "GENAI_UPLOADED_FILE",
+                    "mediaType": "UPLOADED_IMAGE",
+                    "numMedia": num_media
+                }
+            }
+        elif is_image_to_video:
+            # Use imageToVideoParams for image-to-video generation
+            imagine_request = {
+                "operation": "IMAGE_TO_VIDEO",
+                "imageToVideoParams": {
+                    "sourceMediaEntId": str(media_ids[0]),
+                    "prompt": prompt,
+                    "numMedia": 1
+                }
+            }
+        else:
+            # Use textToImageParams or textToVideoParams for text-based generation
+            if operation == "TEXT_TO_VIDEO":
+                imagine_request = {
+                    "operation": operation,
+                    "textToVideoParams": {
+                        "prompt": prompt
+                    }
+                }
+            else:
+                imagine_request = {
+                    "operation": operation,
+                    "textToImageParams": {
+                        "prompt": prompt
+                    }
+                }
+
         variables = {
             "conversationId": conversation_id,
             "content": content,
@@ -153,12 +199,7 @@ class GenerationAPI:
             "mentions": None,
             "clippyIp": None,
             "isNewConversation": kwargs.get('is_new_conversation', True),
-            "imagineOperationRequest": {
-                "operation": operation,
-                "textToImageParams": {
-                    "prompt": prompt
-                }
-            },
+            "imagineOperationRequest": imagine_request,
             "qplJoinId": None,
             "clientTimezone": kwargs.get('timezone', "UTC"),
             "developerOverridesForMessage": None,
@@ -208,9 +249,19 @@ class GenerationAPI:
         )
         
         # Add image-specific parameters
-        variables["imagineOperationRequest"]["textToImageParams"]["orientation"] = self._normalize_orientation(orientation)
-        if num_images > 1:
-            self.logger.warning("num_images > 1 is not supported by this endpoint; generating a single image")
+        # Check if we're doing image-to-image generation
+        media_ids = kwargs.get('media_ids')
+        is_image_to_image = media_ids and len(media_ids) > 0
+        
+        if is_image_to_image:
+            # For image-to-image, orientation is not in imageToImageParams
+            # numMedia is already set in _build_base_variables
+            self.logger.info(f"Using IMAGE_TO_IMAGE operation with source media: {media_ids[0]}")
+        else:
+            # For text-to-image, add orientation to textToImageParams
+            variables["imagineOperationRequest"]["textToImageParams"]["orientation"] = self._normalize_orientation(orientation)
+            if num_images > 1:
+                self.logger.warning("num_images > 1 is not supported by this endpoint; generating a single image")
         
         payload = {
             "doc_id": self.IMAGE_DOC_ID,

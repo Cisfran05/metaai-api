@@ -162,6 +162,7 @@ class ImageRequest(BaseModel):
     media_ids: Optional[list] = None
     attachment_metadata: Optional[dict] = None  # {'file_size': int, 'mime_type': str}
     orientation: Optional[str] = None  # 'VERTICAL', 'LANDSCAPE' (not HORIZONTAL), or 'SQUARE'
+    num_images: int = Field(1, ge=1, le=4)  # Number of images to generate (1-4)
 
 
 class VideoRequest(BaseModel):
@@ -314,13 +315,16 @@ async def image(body: ImageRequest) -> Dict[str, Any]:
         )
     ai = _meta_ai_instance
     try:
+        # Determine number of images: use 4 for image-to-image, 1 for text-to-image
+        num_images = 4 if body.media_ids else body.num_images
+        
         # Use the new generation API with timeout protection
         result = await asyncio.wait_for(
             run_in_threadpool(
                 ai.generate_image_new,
                 prompt=body.prompt,
                 orientation=body.orientation or "VERTICAL",
-                num_images=1,
+                num_images=num_images,
                 media_ids=body.media_ids,
                 attachment_metadata=body.attachment_metadata
             ),
