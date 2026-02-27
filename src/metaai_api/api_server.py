@@ -30,7 +30,8 @@ DEFAULT_REFRESH_SECONDS = 3600
 REFRESH_SECONDS = int(os.getenv("META_AI_REFRESH_INTERVAL_SECONDS", DEFAULT_REFRESH_SECONDS))
 
 # Request timeout (seconds) - prevents infinite hangs on long-running operations
-DEFAULT_REQUEST_TIMEOUT = 120
+# Increased to 180s to accommodate video generation (60s) + polling (120s) + overhead
+DEFAULT_REQUEST_TIMEOUT = 180
 REQUEST_TIMEOUT = int(os.getenv("META_AI_REQUEST_TIMEOUT_SECONDS", DEFAULT_REQUEST_TIMEOUT))
 
 # CORS configuration
