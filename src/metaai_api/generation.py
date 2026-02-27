@@ -336,7 +336,8 @@ class GenerationAPI:
             elif image_ids:
                 self.logger.info(f"⏳ No URLs in SSE stream - fetching URLs for {len(image_ids)} images via polling...")
 
-                max_attempts = kwargs.pop('max_attempts', 25)
+                # Increased to 30 attempts (~90s total) for better reliability
+                max_attempts = kwargs.pop('max_attempts', 30)
                 wait_seconds = kwargs.pop('wait_seconds', 3)
 
                 images = self.fetch_image_urls_by_media_id(
@@ -440,7 +441,8 @@ class GenerationAPI:
                 self.logger.info(f"Fetching URLs for {len(video_ids)} videos...")
                 
                 # Extract max_attempts and wait_seconds from kwargs if present
-                max_attempts = kwargs.pop('max_attempts', 12)
+                # Increased to 24 attempts (120s total) to accommodate 50-60s video generation times
+                max_attempts = kwargs.pop('max_attempts', 24)
                 wait_seconds = kwargs.pop('wait_seconds', 5)
                 
                 # Fetch video URLs using media ID approach
@@ -821,7 +823,7 @@ class GenerationAPI:
         self,
         video_ids: List[str],
         conversation_id: Optional[str] = None,
-        max_attempts: int = 12,
+        max_attempts: int = 24,
         wait_seconds: int = 5
     ) -> List[Dict[str, Any]]:
         """
@@ -833,8 +835,8 @@ class GenerationAPI:
         Args:
             video_ids: List of video IDs from generation
             conversation_id: Optional conversation ID for proper headers
-            max_attempts: Maximum polling attempts (default: 12 = ~60s)
-            wait_seconds: Seconds between attempts
+            max_attempts: Maximum polling attempts (default: 24 = ~120s)
+            wait_seconds: Base seconds between attempts (adaptive polling: 3s initially, 5s later)
             
         Returns:
             List of video dictionaries with URLs, IDs, thumbnails, etc.
@@ -853,7 +855,9 @@ class GenerationAPI:
                 if 'error' in data:
                     self.logger.warning(f"Attempt {attempt}/{max_attempts}: {data['error']}")
                     if attempt < max_attempts:
-                        time.sleep(wait_seconds)
+                        # Adaptive polling: faster for first 10 attempts (30s), then slower
+                        adaptive_wait = 3 if attempt <= 10 else wait_seconds
+                        time.sleep(adaptive_wait)
                     continue
                 
                 # Extract videos from createRouteMedia and mediaLibraryFeed
@@ -921,13 +925,17 @@ class GenerationAPI:
                     self.logger.info(f"Attempt {attempt}/{max_attempts}: Videos not ready yet")
                 
                 if attempt < max_attempts:
-                    self.logger.info(f"Waiting {wait_seconds}s before retry...")
-                    time.sleep(wait_seconds)
+                    # Adaptive polling: faster for first 10 attempts (30s), then slower
+                    adaptive_wait = 3 if attempt <= 10 else wait_seconds
+                    self.logger.info(f"Waiting {adaptive_wait}s before retry...")
+                    time.sleep(adaptive_wait)
                 
             except Exception as e:
                 self.logger.warning(f"Attempt {attempt}/{max_attempts} failed: {e}")
                 if attempt < max_attempts:
-                    time.sleep(wait_seconds)
+                    # Adaptive polling: faster for first 10 attempts (30s), then slower
+                    adaptive_wait = 3 if attempt <= 10 else wait_seconds
+                    time.sleep(adaptive_wait)
         
         self.logger.warning(f"Video URLs not fully available after {max_attempts} attempts")
         return videos if 'videos' in locals() else []
@@ -936,7 +944,7 @@ class GenerationAPI:
         self,
         image_ids: List[str],
         conversation_id: Optional[str] = None,
-        max_attempts: int = 25,
+        max_attempts: int = 30,
         wait_seconds: int = 3
     ) -> List[Dict[str, Any]]:
         """
@@ -948,8 +956,8 @@ class GenerationAPI:
         Args:
             image_ids: List of image IDs from generation
             conversation_id: Optional conversation ID for proper headers
-            max_attempts: Maximum polling attempts (default: 25 = ~75s)
-            wait_seconds: Seconds between attempts (default: 3)
+            max_attempts: Maximum polling attempts (default: 30 = ~90s with adaptive backoff)
+            wait_seconds: Base seconds between attempts (adaptive: 2s → 3s → 4.5s)
 
         Returns:
             List of image dictionaries with URLs, IDs, thumbnails, etc.
@@ -966,14 +974,16 @@ class GenerationAPI:
                 if not isinstance(data, dict):
                     self.logger.warning("Attempt %s/%s: media response is not a dict", attempt, max_attempts)
                     if attempt < max_attempts:
-                        delay = min(wait_seconds * (1 if attempt <= 5 else 1.3 if attempt <= 12 else 1.5), 6)
+                        # Adaptive: 2s (fast) → 3s (medium) → 4.5s (slower)
+                        delay = 2 if attempt <= 8 else (3 if attempt <= 18 else 4.5)
                         time.sleep(delay)
                     continue
 
                 if 'error' in data:
                     self.logger.warning(f"Attempt {attempt}/{max_attempts}: {data['error']}")
                     if attempt < max_attempts:
-                        delay = min(wait_seconds * (1 if attempt <= 5 else 1.3 if attempt <= 12 else 1.5), 6)
+                        # Adaptive: 2s (fast) → 3s (medium) → 4.5s (slower)
+                        delay = 2 if attempt <= 8 else (3 if attempt <= 18 else 4.5)
                         time.sleep(delay)
                     continue
 
@@ -983,7 +993,8 @@ class GenerationAPI:
                 if not isinstance(data_root, dict):
                     self.logger.warning("Attempt %s/%s: media response missing data field", attempt, max_attempts)
                     if attempt < max_attempts:
-                        delay = min(wait_seconds * (1 if attempt <= 5 else 1.3 if attempt <= 12 else 1.5), 6)
+                        # Adaptive: 2s (fast) → 3s (medium) → 4.5s (slower)
+                        delay = 2 if attempt <= 8 else (3 if attempt <= 18 else 4.5)
                         time.sleep(delay)
                     continue
 
@@ -1061,15 +1072,16 @@ class GenerationAPI:
                     self.logger.info(f"Attempt {attempt}/{max_attempts}: Images not ready yet")
 
                 if attempt < max_attempts:
-                    # Progressive backoff: start fast, then slow down
-                    delay = min(wait_seconds * (1 if attempt <= 3 else 1.5 if attempt <= 8 else 2), 5)
+                    # Adaptive polling: 2s (fast) → 3s (medium) → 4.5s (slower)
+                    delay = 2 if attempt <= 8 else (3 if attempt <= 18 else 4.5)
                     self.logger.info(f"Waiting {delay:.1f}s before retry...")
                     time.sleep(delay)
 
             except Exception as e:
                 self.logger.warning(f"Attempt {attempt}/{max_attempts} failed: {e}")
                 if attempt < max_attempts:
-                    delay = min(wait_seconds * (1 if attempt <= 5 else 1.3 if attempt <= 12 else 1.5), 6)
+                    # Adaptive polling: 2s (fast) → 3s (medium) → 4.5s (slower)
+                    delay = 2 if attempt <= 8 else (3 if attempt <= 18 else 4.5)
                     time.sleep(delay)
 
         images_found = len(images) if 'images' in locals() else 0
