@@ -191,7 +191,7 @@ class GenerationAPI:
             "assistantMessageId": assistant_message_id,
             "userUniqueMessageId": str(kwargs.get('user_unique_message_id', self._generate_unique_id())),
             "turnId": turn_id,
-            "spaceId": None,
+            # "spaceId": None,
             "mode": "create",
             "rewriteOptions": None,
             "attachments": None,
