@@ -378,7 +378,7 @@ class VideoGenerator:
             "artifactRewriteOptions": None,
             "imagineOperationRequest": None,
             "imagineClientOptions": {"orientation": str(orientation).upper() if orientation else "VERTICAL"},
-            "spaceId": None,
+            # "spaceId": None,
             "sparkSnapshotId": None,
             "topicPageId": None,
             "includeSpace": False,
